@@ -1,0 +1,26 @@
+[
+  {
+    "query": "My VPN is not connecting",
+    "relevant_document_ids": [
+      "vpn-troubleshooting"
+    ]
+  },
+  {
+    "query": "How do I reset my corporate password?",
+    "relevant_document_ids": [
+      "password-reset"
+    ]
+  },
+  {
+    "query": "VPN authentication failed",
+    "relevant_document_ids": [
+      "vpn-troubleshooting"
+    ]
+  },
+  {
+    "query": "What happens if password reset fails?",
+    "relevant_document_ids": [
+      "password-reset"
+    ]
+  }
+]
