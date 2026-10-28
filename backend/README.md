@@ -1,976 +1,665 @@
-# ITSM AI Platform - Backend
+# ITSM AI Platform — Backend
 
+A Python/FastAPI backend for an AI-powered IT Service Management (ITSM) platform prototype. The backend orchestrates intelligent request classification, knowledge retrieval, ticket management, controlled self-healing workflows, software provisioning, audit logging, and dashboard aggregation.
 
+The platform is designed around a separation of concerns: AI components analyze requests, application services coordinate workflows, and infrastructure adapters handle persistence and external-system interactions.
 
-Python/FastAPI backend for the ITSM AI Platform prototype.
+> **Project status:** Working prototype. The backend test suite passes **206 tests**. ServiceNow integration, automation, and provisioning currently use mock implementations rather than live enterprise systems.
 
+---
 
+## Table of Contents
 
-The backend provides AI intent analysis, deterministic workflow routing, RAG-based knowledge retrieval, controlled self-healing, software provisioning workflows, ticket management, ITSM integration, audit logging, persistence, and dashboard aggregation.
+- [Architecture](#architecture)
+- [Technology Stack](#technology-stack)
+- [AI Models](#ai-models)
+- [Retrieval-Augmented Generation](#retrieval-augmented-generation-rag)
+- [Intent Classification and Routing](#intent-classification-and-routing)
+- [Core Workflows](#core-workflows)
+- [ITSM Integration](#itsm-integration)
+- [API Reference](#api-reference)
+- [Configuration](#configuration)
+- [Installation](#installation)
+- [Running the Backend](#running-the-backend)
+- [Knowledge Base](#knowledge-base)
+- [Testing](#testing)
+- [Project Structure](#project-structure)
+- [Safety and Control Mechanisms](#safety-and-control-mechanisms)
+- [Prototype Limitations](#prototype-limitations)
+- [Relationship to the Root Project](#relationship-to-the-root-project)
 
+---
 
+## Architecture
 
-\---
-
-
-
-\## Architecture
-
-
+The backend follows a layered architecture that separates API handling, application workflows, domain logic, and infrastructure integrations.
 
 ```text
-
-React Frontend
-
-&#x20;     |
-
-&#x20;     | REST API
-
-&#x20;     v
-
-&#x20;  FastAPI
-
-&#x20;     |
-
-&#x20;     v
-
-Application Services
-
-&#x20;     |
-
-&#x20;     +-------------------+
-
-&#x20;     |                   |
-
-&#x20;     v                   v
-
-&#x20;Intent / Routing       RAG
-
-&#x20;     |                   |
-
-&#x20;     |                   +--> Embeddings
-
-&#x20;     |                   +--> Qdrant
-
-&#x20;     |                   +--> Hybrid Retrieval
-
-&#x20;     |                   +--> Grounded LLM
-
-&#x20;     |
-
-&#x20;     +--> Ticket Workflow
-
-&#x20;     |
-
-&#x20;     +--> Self-Healing
-
-&#x20;     |
-
-&#x20;     +--> Software Provisioning
-
-&#x20;     |
-
-&#x20;     +--> Dashboard
-
-&#x20;     |
-
-&#x20;     v
-
-Infrastructure
-
-&#x20;     |
-
-&#x20;     +--> MongoDB
-
-&#x20;     +--> Mock ITSM
-
-&#x20;     +--> Mock Automation
-
-&#x20;     +--> Mock Provisioning
-
+                    React Frontend
+                          |
+                          | REST API
+                          v
+                   FastAPI Application
+                          |
+                          v
+                    API Layer
+                          |
+                          v
+                 Application Services
+                          |
+             +------------+------------+
+             |            |            |
+             v            v            v
+       Intent/Routing     RAG      Ticket Workflows
+             |            |            |
+             |            +--> Embeddings
+             |            +--> Qdrant
+             |            +--> Hybrid Retrieval
+             |            +--> Grounded LLM
+             |
+             +--> Self-Healing
+             |
+             +--> Software Provisioning
+             |
+             +--> Dashboard Aggregation
+                          |
+                          v
+                    Infrastructure
+                          |
+             +------------+------------+
+             |            |            |
+             v            v            v
+          MongoDB      Mock ITSM    Mock Automation
+                                      |
+                                      v
+                               Mock Provisioning
 ```
 
+### Architectural layers
 
-
-\---
-
-
-
-\## Technology
-
-
-
-\- Python 3.12+
-
-\- FastAPI
-
-\- Pydantic
-
-\- Pydantic Settings
-
-\- PyMongo
-
-\- Hugging Face Transformers
-
-\- PyTorch
-
-\- Sentence Transformers
-
-\- Qdrant
-
-\- YAML / Markdown knowledge documents
-
-\- Pytest
-
-
-
-\---
-
-
-
-\## AI Models
-
-
-
-\### Language Model
-
-
-
-```text
-
-Qwen/Qwen3-1.7B
-
-```
-
-
-
-Used for grounded knowledge response generation.
-
-
-
-\### Embedding Model
-
-
-
-```text
-
-Alibaba-NLP/gte-modernbert-base
-
-```
-
-
-
-Used to generate embeddings for knowledge retrieval.
-
-
-
-\---
-
-
-
-\## RAG Pipeline
-
-
-
-The backend implements:
-
-
-
-```text
-
-Knowledge Documents
-
-&#x20;      |
-
-&#x20;      v
-
-Markdown Parsing
-
-&#x20;      |
-
-&#x20;      v
-
-Semantic Chunking
-
-&#x20;      |
-
-&#x20;      v
-
-Embedding Generation
-
-&#x20;      |
-
-&#x20;      v
-
-Qdrant
-
-&#x20;      |
-
-&#x20;      +--> Dense Retrieval
-
-&#x20;      |
-
-&#x20;      +--> BM25 Sparse Retrieval
-
-&#x20;      |
-
-&#x20;      v
-
-Hybrid Retrieval
-
-&#x20;      |
-
-&#x20;      v
-
-Reciprocal Rank Fusion
-
-&#x20;      |
-
-&#x20;      v
-
-Grounding Gate
-
-&#x20;      |
-
-&#x20;      v
-
-Bounded Context
-
-&#x20;      |
-
-&#x20;      v
-
-Qwen LLM
-
-&#x20;      |
-
-&#x20;      v
-
-Grounded Answer + Sources
-
-```
-
-
-
-The knowledge base currently contains eight documents.
-
-
-
-\---
-
-
-
-\## Intent Routing
-
-
-
-The intent workflow supports:
-
-
-
-\- Knowledge Question
-
-\- Incident
-
-\- Service Request
-
-\- Automatable Issue
-
-\- Unknown
-
-
-
-Confidence determines how the request proceeds:
-
-
-
-| Confidence | Behaviour |
-
+| Layer | Responsibility |
 |---|---|
+| API | Exposes versioned HTTP endpoints and handles request/response validation. |
+| Application | Coordinates intent analysis, ticket operations, knowledge retrieval, automation, and provisioning workflows. |
+| Domain | Contains core business concepts and domain-level rules. |
+| Infrastructure | Implements persistence, retrieval integrations, ITSM adapters, and automation adapters. |
 
-| High | Route to the appropriate workflow |
+The architecture keeps workflow orchestration separate from infrastructure implementations, making individual components easier to test and replace.
 
-| Medium | Require confirmation |
+---
 
-| Low | Escalate to human support |
+## Technology Stack
 
-| Unknown | Escalate rather than guess |
+| Category | Technologies |
+|---|---|
+| Language | Python 3.12+ |
+| Backend framework | FastAPI |
+| Data validation and settings | Pydantic, Pydantic Settings |
+| Database integration | PyMongo, MongoDB-compatible database |
+| Language model ecosystem | Hugging Face Transformers, PyTorch |
+| Embeddings | Sentence Transformers |
+| Vector database | Qdrant |
+| Knowledge documents | Markdown, YAML |
+| Testing | Pytest |
 
+---
 
+## AI Models
 
-The deterministic router does not directly execute workflows or call external systems.
-
-
-
-\---
-
-
-
-\## Main Workflows
-
-
-
-\### Incident
-
-
+### Language Model
 
 ```text
-
-Intent
-
-&#x20; |
-
-&#x20; v
-
-Incident Classification
-
-&#x20; |
-
-&#x20; v
-
-Ticket Service
-
-&#x20; |
-
-&#x20; v
-
-Mock ITSM Client
-
-&#x20; |
-
-&#x20; v
-
-Incident
-
+Qwen/Qwen3-1.7B
 ```
 
+Used for grounded knowledge-response generation in the RAG pipeline.
 
-
-\### Self-Healing
-
-
+### Embedding Model
 
 ```text
-
-Identify
-
-&#x20; |
-
-Diagnose
-
-&#x20; |
-
-Knowledge Search
-
-&#x20; |
-
-Automation Decision
-
-&#x20; |
-
-Safety / Authorization
-
-&#x20; |
-
-Execute
-
-&#x20; |
-
-Validate
-
-&#x20; |
-
-Audit
-
-&#x20; |
-
-ITSM Update
-
+Alibaba-NLP/gte-modernbert-base
 ```
 
+Used to generate vector embeddings for semantic knowledge retrieval.
 
+> Model availability, hardware requirements, model-loading configuration, and runtime behaviour depend on the local environment and application configuration.
 
-\### Software Provisioning
+---
 
+## Retrieval-Augmented Generation (RAG)
 
+The knowledge retrieval pipeline combines semantic search with lexical retrieval to find relevant information before generating a response.
+
+### Pipeline
 
 ```text
+                 Knowledge Documents
+                         |
+                         v
+                  Markdown Parsing
+                         |
+                         v
+                   Semantic Chunking
+                         |
+                         v
+                  Embedding Generation
+                         |
+                         v
+                       Qdrant
+                         |
+                +--------+--------+
+                |                 |
+                v                 v
+          Dense Retrieval    BM25 Sparse Retrieval
+                |                 |
+                +--------+--------+
+                         |
+                         v
+                  Hybrid Retrieval
+                         |
+                         v
+             Reciprocal Rank Fusion (RRF)
+                         |
+                         v
+                    Grounding Gate
+                         |
+                         v
+                   Bounded Context
+                         |
+                         v
+                      Qwen LLM
+                         |
+                         v
+              Grounded Answer + Sources
+```
 
+### Key components
+
+- **Document parsing:** Reads supported knowledge documents.
+- **Semantic chunking:** Splits content into retrieval-oriented segments.
+- **Embedding generation:** Converts knowledge chunks into vectors.
+- **Dense retrieval:** Finds semantically similar content using vector representations.
+- **BM25 sparse retrieval:** Finds relevant content through lexical matching.
+- **Hybrid retrieval:** Combines dense and sparse retrieval results.
+- **Reciprocal Rank Fusion (RRF):** Combines ranked results from different retrieval methods.
+- **Grounding gate:** Applies the application's grounding rules before generation.
+- **Bounded context:** Limits the retrieved information supplied to the language model.
+- **Source attribution:** Returns supporting sources with the generated answer.
+
+The knowledge base currently contains eight documents covering common IT support topics.
+
+---
+
+## Intent Classification and Routing
+
+The intent workflow categorizes incoming requests and determines which application workflow should handle them.
+
+### Supported intent categories
+
+| Intent | Purpose |
+|---|---|
+| Knowledge Question | Requests for IT information or troubleshooting guidance. |
+| Incident | Reports of existing IT problems. |
+| Service Request | Requests for IT services or resources. |
+| Automatable Issue | Problems that may qualify for an approved automated workflow. |
+| Unknown | Requests that cannot be confidently categorized. |
+
+### Confidence-based routing
+
+| Confidence level | Intended behaviour |
+|---|---|
+| High | Route the request to the appropriate workflow. |
+| Medium | Request confirmation where required. |
+| Low | Escalate to human support. |
+| Unknown | Escalate rather than guess. |
+
+The deterministic router is responsible for routing decisions. It does not independently execute workflows or directly invoke external systems.
+
+---
+
+## Core Workflows
+
+### 1. Incident Management
+
+The incident workflow coordinates request classification, ticket creation, and ITSM interaction.
+
+```text
 Employee Request
-
-&#x20;     |
-
-&#x20;     v
-
-Intent Analysis
-
-&#x20;     |
-
-&#x20;     v
-
-Software Catalogue
-
-&#x20;     |
-
-&#x20;     v
-
-Service Request
-
-&#x20;     |
-
-&#x20;     v
-
-Mock Provisioning
-
-&#x20;     |
-
-&#x20;     v
-
-Provisioning Status
-
+       |
+       v
+Intent Classification
+       |
+       v
+Incident Workflow
+       |
+       v
+Ticket Service
+       |
+       v
+Mock ITSM Client
+       |
+       v
+Incident Record
 ```
 
+The prototype supports ticket creation and ticket-related operations through its ITSM abstraction.
 
+### 2. Self-Healing Automation
 
-\---
+The self-healing workflow evaluates whether an issue can be handled through an approved automation path.
 
+```text
+Identify
+   |
+   v
+Diagnose
+   |
+   v
+Knowledge Search
+   |
+   v
+Automation Decision
+   |
+   v
+Safety and Authorization Checks
+   |
+   v
+Execute Approved Action
+   |
+   v
+Validate Outcome
+   |
+   v
+Audit Result
+   |
+   v
+Update ITSM Ticket
+```
 
+The workflow separates issue analysis from action execution. Automation decisions are subject to application policies, authorization checks, and validation.
 
-\## ITSM Integration
+The current implementation uses mock automation rather than executing real enterprise remediation operations.
 
+### 3. Software Provisioning
 
+The provisioning workflow handles employee requests for software.
 
-The backend uses an ITSM client abstraction.
+```text
+Employee Request
+       |
+       v
+Intent Analysis
+       |
+       v
+Software Catalogue
+       |
+       v
+Service Request
+       |
+       v
+Mock Provisioning Adapter
+       |
+       v
+Provisioning Status
+```
 
+The prototype models the provisioning workflow and its status transitions. It does not perform actual software installation on employee devices.
 
+### 4. Ticket Management
 
-The current implementation uses a stateful mock ServiceNow-compatible client.
+Ticket-related application services coordinate ticket operations and ITSM interactions.
 
+The backend also aggregates ticket information for the dashboard, including ticket counts and workflow-related status information.
 
+### 5. Dashboard Aggregation
 
-Supported operations include:
+The dashboard service combines application data to provide a summary of ITSM activity to the frontend.
 
+The dashboard is intended for the prototype's operational overview. Its metrics should not be interpreted as production-grade service-level indicators without further validation.
 
+---
 
-\- Create Incident
+## ITSM Integration
 
-\- Create Service Request
+The backend uses an ITSM client abstraction to separate ticket workflows from the underlying ITSM implementation.
 
-\- Get Ticket
+The current prototype uses a stateful mock ServiceNow-compatible client.
 
-\- Update Ticket
+### Supported operations
 
-
+- Create incident
+- Create service request
+- Retrieve ticket
+- Update ticket
 
 No live ServiceNow instance is required for the prototype.
 
+### Integration boundary
 
+The mock client provides a way to demonstrate and test ITSM workflows without connecting to an enterprise ServiceNow environment.
 
-\---
+A production integration would require an appropriately configured ServiceNow instance, authentication, permissions, error handling, and integration testing.
 
+---
 
+## API Reference
 
-\## API
-
-
-
-The API is versioned under:
-
-
+The backend exposes versioned API routes under:
 
 ```text
-
 /api/v1
-
 ```
 
+### Important endpoints
 
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/v1/intent` | Analyze an incoming request and determine its intent. |
+| POST | `/api/v1/knowledge/search` | Search the knowledge base. |
+| POST | `/api/v1/knowledge/ask` | Submit a knowledge question. |
+| POST | `/api/v1/self-healing` | Invoke the self-healing workflow. |
+| GET/POST | `/api/v1/software-provisioning/...` | Access software provisioning operations. |
+| GET/POST | `/api/v1/tickets/...` | Access ticket-related operations. |
+| GET | `/api/v1/dashboard/summary` | Retrieve dashboard summary information. |
 
-Important endpoints include:
+The ellipses indicate endpoint families rather than literal route paths. Consult the FastAPI route definitions for the exact methods, paths, request schemas, and response schemas.
 
+### Interactive API documentation
 
+When the backend is running locally, FastAPI's Swagger UI is available at:
 
 ```text
-
-POST /api/v1/intent
-
-
-
-POST /api/v1/knowledge/search
-
-
-
-POST /api/v1/knowledge/ask
-
-
-
-POST /api/v1/self-healing
-
-
-
-GET/POST /api/v1/software-provisioning/...
-
-
-
-GET/POST /api/v1/tickets/...
-
-
-
-GET /api/v1/dashboard/summary
-
+http://localhost:8000/docs
 ```
 
+The generated OpenAPI specification can be viewed at:
 
+```text
+http://localhost:8000/openapi.json
+```
 
-The FastAPI route definitions are the source of truth for request and response schemas.
+The application's route definitions are the source of truth for the API contract.
 
+---
 
+## Configuration
 
-\---
+Application configuration is managed through Pydantic Settings.
 
-
-
-\## Configuration
-
-
-
-Configuration is managed through Pydantic Settings.
-
-
-
-Supported variables:
-
-
+The following variables illustrate the expected configuration format. Confirm the actual variable names and defaults in the application's settings implementation.
 
 ```env
-
-APP\_NAME=ITSM AI Platform
-
+APP_NAME="ITSM AI Platform"
 ENVIRONMENT=development
-
 DEBUG=true
-
-MONGODB\_URI=mongodb://localhost:27017
-
-MONGODB\_DATABASE=itsm
-
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DATABASE=itsm
 ```
 
-
-
-A configuration template is provided at:
-
-
+A configuration template is expected at:
 
 ```text
-
 .env.example
-
 ```
 
+### Windows PowerShell
 
-
-Create the local configuration with:
-
-
+From the backend directory, create a local environment file:
 
 ```powershell
-
 Copy-Item .env.example .env
-
 ```
 
+Edit `.env` and configure the values required by your environment.
 
+**Security guidelines:**
 
-Do not place real credentials or secrets in `.env.example`.
+- Never commit `.env` files containing credentials.
+- Do not place API keys, passwords, or other secrets in `.env.example`.
+- Keep local environment files excluded through `.gitignore`.
+- Use appropriate secret-management mechanisms for production deployments.
 
+---
 
+## Installation
 
-The local `.env` file is ignored by Git.
+### Prerequisites
 
+- Python 3.12 or a compatible version supported by the project.
+- `uv` or another supported Python environment and package-management workflow.
+- MongoDB-compatible database if database-backed functionality is enabled.
+- Qdrant if vector retrieval functionality is enabled.
+- Sufficient memory and processing resources for the configured Hugging Face models.
 
-
-\---
-
-
-
-\## Installation
-
-
-
-Requirements:
-
-
-
-\- Python 3.12+
-
-\- MongoDB-compatible database
-
-\- Qdrant
-
-\- Sufficient local resources for the Hugging Face models
-
-
-
-Create an environment:
-
-
+### 1. Navigate to the backend
 
 ```powershell
+cd D:\itsm\backend
+```
 
+### 2. Create a virtual environment
+
+If you are using standard Python tooling:
+
+```powershell
 python -m venv .venv
-
-.\\.venv\\Scripts\\Activate.ps1
-
 ```
 
-
-
-Install dependencies:
-
-
+Activate it:
 
 ```powershell
+.\.venv\Scripts\Activate.ps1
+```
 
+Alternatively, if the project is configured for `uv`, use its environment-management commands.
+
+### 3. Install dependencies
+
+Using pip:
+
+```powershell
 pip install -e .
-
 ```
 
+Use the dependency and lockfile configuration committed with the project when reproducing the intended environment.
 
+---
 
-\---
+## Running the Backend
 
-
-
-\## Running
-
-
-
-Start the FastAPI application:
-
-
+Start the FastAPI application from the backend directory:
 
 ```powershell
-
 uvicorn app.main:app --reload --port 8000
-
 ```
 
+### Local URLs
 
+| Resource | Address |
+|---|---|
+| Backend | `http://localhost:8000` |
+| Swagger UI | `http://localhost:8000/docs` |
+| OpenAPI specification | `http://localhost:8000/openapi.json` |
+| Health endpoint | `http://localhost:8000/health` |
 
-Backend:
+The health endpoint is available at `/health` in the documented application configuration. If the route is changed, use the route definition as the source of truth.
 
+---
 
-
-```text
-
-http://localhost:8000
-
-```
-
-
-
-Swagger/OpenAPI documentation:
-
-
-
-```text
-
-http://localhost:8000/docs
-
-```
-
-
-
-Health endpoint:
-
-
-
-```text
-
-http://localhost:8000/health
-
-```
-
-
-
-\---
-
-
-
-\## Knowledge Base
-
-
+## Knowledge Base
 
 Knowledge documents are stored under:
 
-
-
 ```text
-
 knowledge/
-
 ```
 
-
-
-Current topics include:
-
-
+The current knowledge topics include:
 
 ```text
-
 access
-
 laptop
-
 mfa
-
 outlook
-
 password
-
 software
-
 vpn
-
 wifi
-
 ```
 
+The ingestion and retrieval components prepare the knowledge documents for Qdrant-based search.
 
+The knowledge base supports the prototype's IT support and troubleshooting scenarios.
 
-The knowledge ingestion and retrieval components prepare these documents for Qdrant-based retrieval.
+---
 
+## Testing
 
+The backend uses Pytest for automated testing.
 
-\---
+### Run the test suite
 
-
-
-\## Testing
-
-
-
-Run the complete backend test suite:
-
-
+From the backend directory:
 
 ```powershell
+uv run pytest -q
+```
 
+Alternatively, if the environment is already configured:
+
+```powershell
 pytest -q
-
 ```
 
-
-
-Final validation:
-
-
+### Latest recorded validation
 
 ```text
-
-205 passed
-
+206 passed, 1 warning
 ```
 
+The latest recorded run completed in approximately 15 seconds.
 
+The warning concerns a Starlette deprecation notice involving `httpx` and the test client. It did not cause any test failures.
 
-The test suite covers API behaviour, intent analysis, routing, workflow orchestration, tickets, ITSM, RAG, self-healing, software provisioning, repositories, and audit behaviour.
+### Test coverage areas
 
+The test suite exercises multiple parts of the backend, including:
 
+- API behaviour
+- Intent analysis and routing
+- Workflow orchestration
+- Ticket management
+- ITSM interactions
+- Knowledge retrieval and RAG
+- Self-healing workflows
+- Software provisioning
+- Repository implementations
+- Audit behaviour
 
-\---
+The recorded test result demonstrates that the current automated test suite passes. It does not, by itself, establish production readiness or validate live enterprise integrations.
 
+---
 
+## Project Structure
 
-\## Project Structure
-
-
+The main backend layout is:
 
 ```text
-
 backend/
-
-|
-
-+-- app/
-
-|   +-- api/
-
-|   +-- application/
-
-|   +-- config/
-
-|   +-- domain/
-
-|   +-- infrastructure/
-
-|
-
-+-- evaluation/
-
-|
-
-+-- knowledge/
-
-|
-
-+-- tests/
-
-|
-
-+-- .env.example
-
-+-- .gitignore
-
-+-- .python-version
-
-+-- pyproject.toml
-
-+-- README.md
-
-+-- uv.lock
-
+├── app/
+│   ├── api/
+│   ├── application/
+│   │   └── ports/
+│   ├── config/
+│   ├── domain/
+│   └── infrastructure/
+│       ├── database/
+│       └── repositories/
+├── evaluation/
+├── knowledge/
+├── tests/
+├── .env.example
+├── .gitignore
+├── .python-version
+├── pyproject.toml
+├── README.md
+└── uv.lock
 ```
 
+This is a representative layout. Refer to the actual repository for the complete set of files and directories.
 
-
-\### Application layers
-
-
+### Application dependency direction
 
 ```text
+API
+ |
+ v
+Application
+ |
+ v
+Domain
 
-api
-
-&#x20;|
-
-&#x20;v
-
-application
-
-&#x20;|
-
-&#x20;v
-
-domain
-
-&#x20;|
-
-&#x20;v
-
-infrastructure
-
+Infrastructure provides implementations
+for application-facing interfaces.
 ```
 
+The separation allows application workflows to be tested without requiring every infrastructure integration to be live.
 
+---
 
-The architecture keeps workflow orchestration separate from infrastructure implementations.
+## Safety and Control Mechanisms
 
+The backend separates AI-assisted analysis from workflow execution.
 
+The implemented design includes controls such as:
 
-\---
-
-
-
-\## Safety
-
-
-
-The backend intentionally separates AI analysis from workflow execution.
-
-
-
-Important controls include:
-
-
-
-\- Confidence-based routing
-
-\- Medium-confidence confirmation
-
-\- Low-confidence escalation
-
-\- Unknown-intent escalation
-
-\- Knowledge grounding
-
-\- Source attribution
-
-\- Authorization checks
-
-\- Consent checks
-
-\- Approved automation policies
-
-\- Validation after automation
-
-\- Audit logging
-
-
+- Confidence-based routing
+- Confirmation for medium-confidence decisions where required
+- Escalation for low-confidence requests
+- Unknown-intent escalation
+- Knowledge grounding
+- Source attribution
+- Authorization checks
+- Consent checks
+- Approved automation policies
+- Post-automation validation
+- Audit logging
 
 Unknown requests are not automatically sent through RAG or automation.
 
+These mechanisms support safer workflow handling in the prototype. They should not be interpreted as a substitute for a full enterprise security review, production authorization model, or operational risk assessment.
 
+---
 
-\---
+## Prototype Limitations
 
-
-
-\## Prototype Limitations
-
-
-
-The backend is intentionally a prototype.
-
-
+The project demonstrates an AI-assisted ITSM architecture but is not a complete production deployment.
 
 Current limitations include:
 
+- Mock ServiceNow integration rather than a live enterprise connection
+- Mock password-reset automation
+- Mock software provisioning
+- No actual software installation on employee devices
+- Local Hugging Face model inference
+- Prototype authentication
+- Prototype dashboard semantics
+- No production distributed-worker architecture
+- No enterprise SSO/RBAC implementation
+- No production-grade observability or high availability
 
+Additional work would be required to deploy the platform in a real enterprise environment, including security hardening, identity integration, monitoring, deployment automation, and integration testing.
 
-\- Mock ServiceNow integration
+---
 
-\- Mock password-reset automation
+## Relationship to the Root Project
 
-\- Mock software provisioning
+This README documents the backend component.
 
-\- No actual software installation
-
-\- Local Hugging Face inference
-
-\- Prototype authentication
-
-\- Prototype dashboard semantics
-
-\- No production distributed worker architecture
-
-\- No enterprise SSO/RBAC
-
-\- No production-grade observability or high availability
-
-
-
-\---
-
-
-
-\## Relationship to the Root Project
-
-
-
-For complete project architecture, frontend usage, demo scenarios, limitations, and end-to-end workflows, see:
-
-
+For the complete platform architecture, frontend usage, demonstration scenarios, end-to-end workflows, and overall project limitations, see the root README:
 
 ```text
-
 ../README.md
-
 ```
 
-
-
-The root README is the primary project documentation.
-
+The root README is the primary documentation for the complete ITSM AI Platform.
