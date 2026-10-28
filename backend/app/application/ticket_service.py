@@ -235,7 +235,30 @@ class TicketService:
         ticket.updated_at = datetime.now(timezone.utc)
 
         return self._ticket_repository.save(ticket)
+    # ------------------------------------------------------------------
+    # Resolve
+    # ------------------------------------------------------------------
 
+    def resolve_ticket(self, ticket_id: str) -> Ticket:
+        """Mark an existing internal ticket as resolved and persist it."""
+
+        ticket_id = ticket_id.strip()
+
+        if not ticket_id:
+            raise ValueError("Ticket ID cannot be empty.")
+
+        ticket = self._ticket_repository.get_by_id(ticket_id)
+
+        if ticket is None:
+            raise ValueError(f"Ticket not found: {ticket_id}")
+
+        now = datetime.now(timezone.utc)
+
+        ticket.status = TicketStatus.RESOLVED
+        ticket.resolved_at = ticket.resolved_at or now
+        ticket.updated_at = now
+
+        return self._ticket_repository.save(ticket)
     # ------------------------------------------------------------------
     # Incident metadata enrichment
     # ------------------------------------------------------------------

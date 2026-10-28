@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { analyzeRequest, askKnowledge, createEscalation, executeSelfHealing } from '../api/itsm'
+import { useEffect, useMemo, useState } from 'react'
+import { analyzeRequest, askKnowledge, createEscalation, executeSelfHealing, getProvisioningStatus } from '../api/itsm'
 import { Badge } from '../components/Badge'
 import type { IntentWorkflowResponse, KnowledgeAnswer, SelfHealingResponse, SoftwareProvisioningResponse } from '../types/api'
 
@@ -20,9 +20,11 @@ export function EmployeePortal() {
   const [workflow, setWorkflow] = useState<IntentWorkflowResponse | null>(null)
   const [knowledge, setKnowledge] = useState<KnowledgeAnswer | null>(null)
   const [selfHealing, setSelfHealing] = useState<SelfHealingResponse | null>(null)
+  const [provisioning, setProvisioning] = useState<SoftwareProvisioningResponse | null>(null)
+  const [provisioningRefreshing, setProvisioningRefreshing] = useState(false)
 
   const resetResult = () => {
-    setWorkflow(null); setKnowledge(null); setSelfHealing(null); setError('')
+    setWorkflow(null); setKnowledge(null); setSelfHealing(null); setProvisioning(null); setProvisioningRefreshing(false); setError('')
   }
 
   const submit = async () => {
@@ -82,6 +84,63 @@ export function EmployeePortal() {
     workflow?.analysis.intent === 'service_request'
       ? getProvisioningResponse(workflow.response)
       : null
+
+  // The initial intent workflow response may contain a stale "provisioning"
+  // snapshot. Refresh it through the status endpoint until it reaches a final
+  // state, or stop after a bounded number of attempts.
+  useEffect(() => {
+    if (!workflowProvisioning?.provisioning_request_id) {
+      setProvisioning(null)
+      setProvisioningRefreshing(false)
+      return
+    }
+
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const requestId = workflowProvisioning.provisioning_request_id
+    const terminalStatuses = new Set(['completed', 'failed', 'cancelled', 'canceled', 'rejected'])
+    const maxAttempts = 12
+    const pollIntervalMs = 2000
+
+    setProvisioning(workflowProvisioning)
+    setProvisioningRefreshing(true)
+
+    const poll = async (attempt: number) => {
+      if (cancelled) return
+      if (attempt >= maxAttempts) {
+        setProvisioningRefreshing(false)
+        return
+      }
+
+      try {
+        const latest = await getProvisioningStatus(requestId)
+        if (cancelled) return
+        setProvisioning(latest)
+
+        const status = latest.status.trim().toLowerCase().replaceAll(' ', '_')
+        if (terminalStatuses.has(status)) {
+          setProvisioningRefreshing(false)
+          return
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setProvisioningRefreshing(false)
+          setError(err instanceof Error
+            ? `Provisioning request was created, but its status could not be refreshed: ${err.message}`
+            : 'Provisioning request was created, but its status could not be refreshed.')
+        }
+        return
+      }
+
+      timer = setTimeout(() => void poll(attempt + 1), pollIntervalMs)
+    }
+
+    timer = setTimeout(() => void poll(0), pollIntervalMs)
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [workflowProvisioning?.provisioning_request_id])
 
   return (
     <div className="page">
@@ -198,7 +257,7 @@ export function EmployeePortal() {
   </section>
 )}
           {selfHealing && <SelfHealingCard data={selfHealing} />}
-          {workflowProvisioning && <ProvisioningCard data={workflowProvisioning} />}
+          {provisioning && <ProvisioningCard data={provisioning} isRefreshing={provisioningRefreshing} />}
         </>
       )}
     </div>
@@ -258,7 +317,7 @@ function SelfHealingCard({ data }: { data: SelfHealingResponse }) {
   )
 }
 
-function ProvisioningCard({ data }: { data: SoftwareProvisioningResponse }) {
+function ProvisioningCard({ data, isRefreshing }: { data: SoftwareProvisioningResponse; isRefreshing: boolean }) {
   const tone = data.status === 'completed' || data.status === 'resolved' ? 'green' : data.status.includes('fail') ? 'red' : 'blue'
   return (
     <section className="card result-card">
@@ -269,6 +328,7 @@ function ProvisioningCard({ data }: { data: SoftwareProvisioningResponse }) {
           <Badge tone={tone}>{formatStatus(data.status)}</Badge>
         </div>
         <p>{data.message}</p>
+        {isRefreshing && <p className="muted" role="status">Refreshing simulated provisioning status…</p>}
         <div className="result-meta">
           <span>Request: {data.provisioning_request_id}</span>
           {data.external_request_number && <span>ITSM: {data.external_request_number}</span>}

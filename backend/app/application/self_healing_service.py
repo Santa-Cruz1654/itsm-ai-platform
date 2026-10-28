@@ -149,7 +149,7 @@ class SelfHealingWorkflowService:
         self._audit_repository = (
             audit_repository
         )
-
+        self._ticket_service = ticket_service
         self._itsm_client = itsm_client
 
         self._password_reset_tool = (
@@ -637,7 +637,28 @@ class SelfHealingWorkflowService:
                 ),
             },
         )
+        # --------------------------------------------------------------
+        # 8A. Ensure successful automation has an internal ticket.
+        # Create it only after execution and validation have succeeded
+        # to avoid duplicate tickets on failure/escalation paths.
+        # --------------------------------------------------------------
 
+        if ticket is None:
+            ticket = self._ticket_service.create_ticket(
+                ticket_type=TicketType.REQUEST,
+                title=(
+                    f"Self-service resolved: "
+                    f"{analysis.summary or 'Password reset'}"
+                ),
+                description=employee_request,
+                user_id=user_id,
+            )
+
+        # Persist the internal resolution before synchronizing the
+        # external ITSM record.
+        ticket = self._ticket_service.resolve_ticket(
+            ticket.ticket_id
+        )
         # --------------------------------------------------------------
         # 9. Update ITSM
         # --------------------------------------------------------------

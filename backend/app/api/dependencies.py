@@ -172,28 +172,27 @@ def get_ticket_service(
         ticket_repository=repository,
         itsm_client=get_itsm_client(),
     )
-
 def get_dashboard_service(
     mongodb: Annotated[
         MongoDB,
         Depends(get_mongodb),
     ],
+    audit_repository: Annotated[
+        AuditRepository,
+        Depends(get_audit_repository),
+    ],
 ) -> DashboardService:
     """
-    Dependency provider for the reviewer-facing
-    ITSM dashboard.
-
-    The dashboard reads tickets through the same
-    MongoDB-backed repository used by the production
-    ticket workflow.
+    Provide the dashboard service with ticket and audit
+    repositories backed by the application's persistence layer.
     """
-
-    repository = MongoTicketRepository(
+    ticket_repository = MongoTicketRepository(
         mongodb.database,
     )
 
     return DashboardService(
-        ticket_repository=repository,
+        ticket_repository=ticket_repository,
+        audit_repository=audit_repository,
     )
 # ----------------------------------------------------------------------
 # Backward-compatible ITSM dependency names

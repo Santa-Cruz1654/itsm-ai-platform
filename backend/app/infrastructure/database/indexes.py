@@ -21,8 +21,8 @@ def create_indexes(database: Database) -> None:
         name="conversation_id_unique",
     )
 
-    database["audit_logs"].create_index(
-        [("audit_id", 1)],
+    database["audit_events"].create_index(
+        [("event_id", 1)],
         unique=True,
-        name="audit_id_unique",
+        name="event_id_unique",
     )

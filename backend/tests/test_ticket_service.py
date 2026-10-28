@@ -72,3 +72,23 @@ def test_ticket_user_id_cannot_be_empty() -> None:
             description="VPN is unavailable.",
             user_id="   ",
         )
+def test_resolve_ticket_persists_resolved_status() -> None:
+    service = create_service()
+
+    ticket = service.create_ticket(
+        ticket_type=TicketType.INCIDENT,
+        title="VPN connection failure",
+        description="Employee cannot connect to the corporate VPN.",
+        user_id="USR-001",
+    )
+
+    resolved = service.resolve_ticket(ticket.ticket_id)
+    retrieved = service.get_ticket(ticket.ticket_id)
+
+    assert resolved.status == TicketStatus.RESOLVED
+    assert resolved.resolved_at is not None
+    assert resolved.updated_at >= ticket.updated_at
+
+    assert retrieved is not None
+    assert retrieved.status == TicketStatus.RESOLVED
+    assert retrieved.resolved_at is not None

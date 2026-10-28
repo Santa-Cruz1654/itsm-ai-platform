@@ -12,7 +12,15 @@ class MongoAuditRepository(AuditRepository):
 
     def save(self, event: AuditEvent) -> AuditEvent:
         document = event.model_dump(mode="json")
-
         self._collection.insert_one(document)
-
         return event
+
+    def list_all(self) -> list[AuditEvent]:
+        """Retrieve persisted audit events from MongoDB."""
+        events: list[AuditEvent] = []
+
+        for document in self._collection.find():
+            document.pop("_id", None)
+            events.append(AuditEvent.model_validate(document))
+
+        return events
